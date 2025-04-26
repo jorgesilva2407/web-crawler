@@ -1,4 +1,5 @@
 import os
+import logging
 import threading
 from dataclasses import dataclass
 from warcio.warcwriter import WARCWriter
@@ -20,11 +21,18 @@ class Writer:
     _buffer: list[Page] = []
     _flush_count: int = 0
     _base_dir: str = None
+    _num_crawled: int = 0
+    _crawl_limit: int = None
+    _finished_event: threading.Event = None
 
     __BUFFER_SIZE = 1000
 
-    def __new__(cls, execution_id: str):
+    def __new__(
+        cls, execution_id: str, crawl_limit: int, finished_event: threading.Event
+    ):
         if not cls._instance:
+            cls._crawl_limit = crawl_limit
+            cls._finished_event = finished_event
             Writer._base_dir = f"output/{execution_id}"
             os.makedirs(Writer._base_dir)
             cls._instance = super(Writer, cls).__new__(cls)
@@ -32,6 +40,7 @@ class Writer:
 
     @staticmethod
     def flush():
+        logging.info(f"Flushing {len(Writer._buffer)} pages to disk")
         if len(Writer._buffer) == 0:
             return
 
@@ -62,6 +71,18 @@ class Writer:
     @Lock(_lock)
     def write(url: str, content: Response):
         Writer._buffer.append(Page(url, content))
+        Writer._num_crawled += 1
+
+        if Writer._num_crawled % 100 == 0:
+            logging.info(f"Crawled pages: {Writer._num_crawled}")
 
         if len(Writer._buffer) >= Writer.__BUFFER_SIZE:
             Writer.flush()
+            return
+
+        if Writer._num_crawled >= Writer._crawl_limit:
+            Writer._finished_event.set()
+            Writer.flush()
+            logging.info(
+                f"Finished crawling. Total pages crawled: {Writer._num_crawled}"
+            )

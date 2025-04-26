@@ -27,8 +27,8 @@ def parse_args():
         "-t",
         "--threads",
         type=int,
-        default=8,
-        help="Number of threads to use for crawling (default: 8)",
+        default=32,
+        help="Number of threads to use for crawling (default: 32)",
     )
     return parser.parse_args()
 

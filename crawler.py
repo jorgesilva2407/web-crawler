@@ -1,6 +1,12 @@
+import time
+import json
+import logging
+import requests
 import threading
-from frontier import Frontier
 from writer import Writer
+from bs4 import BeautifulSoup
+from frontier import Frontier
+from urllib.parse import urlparse
 
 
 class Crawler:
@@ -12,16 +18,16 @@ class Crawler:
         threads: int,
         seeds: list[str],
     ):
-        self._limit = limit
-        self._num_crawled = 0
         self._debug = debug
         self._num_threads = threads
-        self._writer = Writer(execution_id)
+        self._finished_event = threading.Event()
+
+        self._writer = Writer(execution_id, limit, self._finished_event)
         self._frontier = Frontier(seeds)
 
     def crawl(self):
         threads = []
-        
+
         for _ in range(self._num_threads):
             thread = threading.Thread(target=self._crawl)
             threads.append(thread)
@@ -31,13 +37,92 @@ class Crawler:
             thread.join()
 
     def _crawl(self):
-        pass
+        while not self._finished_event.is_set():
+            url = self._frontier.get()
 
-    def _crawl_page(self, url: str):
-        pass
+            if url is None:
+                continue
 
-    def _get_links(self, url: str):
-        pass
+            response = self._fetch(url)
 
-    def _save_page(self, url: str, content: str):
-        pass
+            if response is None:
+                continue
+
+            parsed_html = self._parse_html(response)
+
+            if parsed_html is None:
+                continue
+
+            if self._debug:
+                self._print_debug_info(url, parsed_html)
+
+            extracted_urls = self._extract_urls(parsed_html)
+
+            self._writer.write(url, response)
+
+            for new_url in extracted_urls:
+                if self._is_valid_url(new_url):
+                    self._frontier.add(new_url)
+                else:
+                    logging.info(f"Invalid URL, skipping: {new_url}")
+
+    def _fetch(self, url: str):
+        try:
+            logging.info(f"Fetching URL: {url}")
+
+            response = requests.get(
+                url,
+                timeout=0.5,
+            )
+            if "text/html" in response.headers.get("Content-Type", ""):
+                return response
+
+            logging.info(f"URL {url} is not HTML, skipping.")
+        except Exception as e:
+            logging.info(f"Error fetching URL {url}: {e}")
+
+        return None
+
+    def _parse_html(self, response):
+        try:
+            soup = BeautifulSoup(response.text, "html.parser")
+            return soup
+        except Exception as e:
+            logging.info(f"Error parsing HTML: {e}")
+            return None
+
+    def _print_debug_info(self, url, soup):
+        metadata = {
+            "URL": url,
+            "Title": self._extract_title(soup),
+            "Text": self._extract_twenty_words(soup),
+            "Timestamp": int(time.time()),
+        }
+
+        print(json.dumps(metadata))
+
+    def _extract_title(self, soup):
+        title = soup.title.string if soup.title else "No title found"
+        return title
+
+    def _extract_twenty_words(self, soup):
+        text = soup.get_text()
+        words = text.split()[:20]
+        return " ".join(words)
+
+    def _extract_urls(self, soup):
+        links = []
+
+        for a_tag in soup.find_all("a", href=True):
+            href = a_tag["href"]
+            if href.startswith("http://") or href.startswith("https://"):
+                links.append(href)
+
+        return links
+
+    def _is_valid_url(self, url: str):
+        try:
+            parsed = urlparse(url)
+            return all([parsed.scheme in ("http", "https"), parsed.netloc])
+        except Exception:
+            return False

@@ -1,14 +1,16 @@
-import url_normalize
-from politeness import PoliteQueue
-from urllib.parse import urlparse
+import random
+import logging
 import threading
+import url_normalize
 from lock import Lock
+from urllib.parse import urlparse
+from politeness import PoliteQueue
 
 
 class Frontier:
     _instance = None
     _queues: dict[str, PoliteQueue] = {}
-    _visited: set[str] = set()
+    _queued: set[str] = set()
     _lock: threading.Lock = threading.Lock()
 
     def __new__(cls, seeds: list[str]):
@@ -23,7 +25,7 @@ class Frontier:
     def add(url: str):
         normalized_url = url_normalize.url_normalize(url)
 
-        if normalized_url in Frontier._visited:
+        if normalized_url in Frontier._queued:
             return
 
         parsed_url = urlparse(normalized_url)
@@ -32,15 +34,17 @@ class Frontier:
         if base_url not in Frontier._queues:
             Frontier._queues[base_url] = PoliteQueue(base_url)
 
+        Frontier._queued.add(normalized_url)
         Frontier._queues[base_url].enque(normalized_url)
 
     @staticmethod
     @Lock(_lock)
     def get():
-        for queue in Frontier._queues.values():
+        queues = list(Frontier._queues.values())
+        random.shuffle(queues)
+        for queue in queues:
             if not queue.can_crawl():
                 continue
             url = queue.deque()
-            Frontier._visited.add(url)
             return url
         return None
