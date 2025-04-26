@@ -6,7 +6,7 @@ import threading
 from writer import Writer
 from bs4 import BeautifulSoup
 from frontier import Frontier
-from urllib.parse import urlparse
+from utils import base_url, normalized_url, is_valid_url
 
 
 class Crawler:
@@ -23,7 +23,7 @@ class Crawler:
         self._finished_event = threading.Event()
 
         self._writer = Writer(execution_id, limit, self._finished_event)
-        self._frontier = Frontier(seeds)
+        Frontier(self._finished_event, seeds)
 
     def crawl(self):
         threads = []
@@ -38,7 +38,7 @@ class Crawler:
 
     def _crawl(self):
         while not self._finished_event.is_set():
-            url = self._frontier.get()
+            url = Frontier.get()
 
             if url is None:
                 continue
@@ -57,14 +57,14 @@ class Crawler:
                 self._print_debug_info(url, parsed_html)
 
             extracted_urls = self._extract_urls(parsed_html)
+            base_and_normalized_url = [
+                (base_url(url), normalized_url(url))
+                for url in extracted_urls
+                if is_valid_url(url)
+            ]
 
             self._writer.write(url, response)
-
-            for new_url in extracted_urls:
-                if self._is_valid_url(new_url):
-                    self._frontier.add(new_url)
-                else:
-                    logging.info(f"Invalid URL, skipping: {new_url}")
+            Frontier.add_range(base_and_normalized_url)
 
     def _fetch(self, url: str):
         try:
@@ -77,7 +77,7 @@ class Crawler:
             if "text/html" in response.headers.get("Content-Type", ""):
                 return response
 
-            logging.info(f"URL {url} is not HTML, skipping.")
+            logging.info(f"Error: URL {url} is not HTML, skipping.")
         except Exception as e:
             logging.info(f"Error fetching URL {url}: {e}")
 
@@ -119,10 +119,3 @@ class Crawler:
                 links.append(href)
 
         return links
-
-    def _is_valid_url(self, url: str):
-        try:
-            parsed = urlparse(url)
-            return all([parsed.scheme in ("http", "https"), parsed.netloc])
-        except Exception:
-            return False

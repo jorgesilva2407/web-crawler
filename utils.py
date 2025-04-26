@@ -1,4 +1,6 @@
 import argparse
+import url_normalize
+from urllib.parse import urlparse
 
 
 def parse_args():
@@ -37,3 +39,20 @@ def parse_seeds(seeds_file):
     with open(seeds_file, "r") as f:
         seeds = [line.strip() for line in f.readlines()]
     return seeds
+
+
+def base_url(url: str) -> str:
+    parsed_url = urlparse(url)
+    return f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+
+def normalized_url(url: str) -> str:
+    return url_normalize.url_normalize(url)
+
+
+def is_valid_url(url: str):
+    try:
+        parsed = urlparse(url)
+        return all([parsed.scheme in ("http", "https"), parsed.netloc])
+    except Exception:
+        return False
