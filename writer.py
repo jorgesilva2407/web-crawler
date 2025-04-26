@@ -63,6 +63,7 @@ class Writer:
                 )
 
                 writer.write_record(record)
+            writer.close()
 
         Writer._buffer = []
         Writer._flush_count += 1
@@ -73,7 +74,7 @@ class Writer:
         Writer._buffer.append(Page(url, content))
         Writer._num_crawled += 1
 
-        if Writer._num_crawled % 100 == 0:
+        if Writer._num_crawled % 1000 == 0:
             logging.info(f"Crawled pages: {Writer._num_crawled}")
 
         if len(Writer._buffer) >= Writer.__BUFFER_SIZE:

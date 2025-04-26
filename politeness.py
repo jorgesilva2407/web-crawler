@@ -1,73 +1,71 @@
 import logging
-import requests
-from queue import Queue
-from timer import timeit
+from threading import Lock
 from protego import Protego
-from datetime import datetime
+from session import Session
+from datetime import datetime, timedelta
 
 
-class PoliteQueue(Queue):
-    def __init__(self, base_url: str):
-        super().__init__()
-        self._base_url = base_url
-        self._crawl_delay = None
-        self._robots = None
-        self._last_crawled = None
-        self._crawl_settings_initialized = False
+class PageInfo:
+    def __init__(self, url: str):
+        self.url = url
+        self.lock = Lock()
+        self.initialized = False
+        self.robots = None
+        self.crawl_delay_float = None
+        self.crawl_delay_timedelta = None
+        self.last_crawled = None
 
-        self._retries = 0
-        self.__PARSE_ROBOTS_RETRIES = 3
+    def time_to_wait(self):
+        time_to_crawl = self.last_crawled + self.crawl_delay_timedelta
+        time_to_wait = (time_to_crawl - datetime.now()).total_seconds()
+        return max(0, time_to_wait)
 
-    def enque(self, url: str):
-        if not self._robots or self._robots.can_fetch("*", url):
-            super().put(url)
+    def can_fetch(self, url: str):
+        if not self.robots:
+            return True
+        return self.robots.can_fetch("*", url)
 
-    def deque(self):
-        url = super().get()
-        self._last_crawled = datetime.now()
-        return url
-
-    def can_crawl(self):
-        if not self._crawl_settings_initialized:
-            self._initialize_crawl_settings()
-
-        if not self._crawl_settings_initialized:
-            return False
-
-        now = datetime.now()
-        elapsed_time = (now - self._last_crawled).total_seconds()
-        return elapsed_time >= self._crawl_delay
-
-    def _initialize_crawl_settings(self):
-        self._last_crawled = datetime.now()
+    def fetch_robots(self, session: Session):
+        robots_url = f"{self.url}/robots.txt"
         try:
-            self._crawl_delay, self._robots = self._parse_robots_txt(self._base_url)
-        except requests.exceptions.Timeout:
-            if self._retries < self.__PARSE_ROBOTS_RETRIES:
-                self._retries += 1
-                return False
-            else:
-                logging.info(
-                    f"Error: Failed to fetch robots.txt after {self.__PARSE_ROBOTS_RETRIES} retries, ignoring robots.txt"
-                )
-                self._crawl_delay, self._robots = self._ignore_robots()
-        self._crawl_settings_initialized = True
-
-    @timeit
-    def _parse_robots_txt(self, base_url: str):
-        robots_url = f"{base_url}/robots.txt"
-        try:
-            response = requests.get(robots_url, timeout=2)
+            response = session.get(robots_url, timeout=2)
             if response.status_code == 200:
                 robots = Protego.parse(response.text)
-                return robots.crawl_delay("*") or 0.1, robots
+                self._initialize(
+                    robots=robots,
+                    crawl_delay=robots.crawl_delay("*") or 0.1,
+                    last_crawled=datetime.now(),
+                )
+                logging.info(f"Success: Fetched robots.txt for {self.url}")
             else:
-                return self._ignore_robots()
-        except requests.exceptions.Timeout as e:
-            logging.info(f"Error: Timeout while fetching {robots_url}, ignoring robots.txt")
-            raise e
-        except Exception:
-            return self._ignore_robots()
+                self._initialize()
+                logging.info(
+                    f"Error: Failed to fetch robots.txt for {self.url}: {response.status_code}"
+                )
+        except Exception as e:
+            self._initialize()
+            logging.error(f"Exception: {e} while fetching robots.txt for {self.url}")
 
-    def _ignore_robots(self):
-        return 0.1, None
+    def _initialize(self, robots=None, crawl_delay=0.1):
+        self.robots = robots
+        self.crawl_delay_float = crawl_delay
+        self.crawl_delay_timedelta = timedelta(seconds=crawl_delay)
+        self.last_crawled = datetime.now()
+        self.initialized = True
+
+
+class Politeness:
+    _instance = None
+    _page_info_registry: dict[str, PageInfo] = {}
+    _lock: Lock = Lock()
+
+    def __new__(cls):
+        if not cls._instance:
+            cls._instance = super(Politeness, cls).__new__(cls)
+        return cls._instance
+
+    def get_page_info(self, base_url: str) -> PageInfo:
+        with self._lock:
+            if base_url not in self._page_info_registry:
+                self._page_info_registry[base_url] = PageInfo(base_url)
+            return self._page_info_registry[base_url]
