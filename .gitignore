@@ -69,3 +69,4 @@ dmypy.json
 
 # WARC Gzip
 *warc.gz
+warc

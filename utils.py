@@ -6,6 +6,11 @@ from urllib.parse import urlparse
 
 
 def parse_args():
+    """
+    Parse command line arguments.
+    Returns:
+        argparse.Namespace: Parsed command line arguments.
+    """
     parser = argparse.ArgumentParser(description="Web Crawler")
     parser.add_argument(
         "-s",
@@ -38,17 +43,38 @@ def parse_args():
 
 
 def parse_seeds(seeds_file):
+    """
+    Parse the seed URLs from a file.
+    Args:
+        seeds_file (str): Path to the file containing seed URLs.
+    Returns:
+        list: List of seed URLs.
+    """
     with open(seeds_file, "r") as f:
         seeds = [line.strip() for line in f.readlines()]
     return seeds
 
 
 def base_url(url: str) -> str:
+    """
+    Extract the base URL from a given URL.
+    Args:
+        url (str): The URL to extract the base URL from.
+    Returns:
+        str: The base URL.
+    """
     parsed_url = urlparse(url)
     return f"{parsed_url.scheme}://{parsed_url.netloc}"
 
 
 def normalized_url(url: str) -> str:
+    """
+    Normalize a URL using url_normalize.
+    Args:
+        url (str): The URL to normalize.
+    Returns:
+        str: The normalized URL.
+    """
     try:
         return url_normalize.url_normalize(url)
     except Exception as e:
@@ -57,6 +83,13 @@ def normalized_url(url: str) -> str:
 
 
 def is_valid_url(url: str):
+    """
+    Check if a URL is valid.
+    Args:
+        url (str): The URL to check.
+    Returns:
+        bool: True if the URL is valid, False otherwise.
+    """
     try:
         parsed = urlparse(url)
         return all([parsed.scheme in ("http", "https"), parsed.netloc])
