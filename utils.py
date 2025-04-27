@@ -1,3 +1,4 @@
+import logging
 import argparse
 import url_normalize
 from urllib.parse import urlparse
@@ -29,8 +30,8 @@ def parse_args():
         "-t",
         "--threads",
         type=int,
-        default=32,
-        help="Number of threads to use for crawling (default: 32)",
+        default=16,
+        help="Number of threads to use for crawling (default: 16)",
     )
     return parser.parse_args()
 
@@ -47,7 +48,11 @@ def base_url(url: str) -> str:
 
 
 def normalized_url(url: str) -> str:
-    return url_normalize.url_normalize(url)
+    try:
+        return url_normalize.url_normalize(url)
+    except Exception as e:
+        logging.error(f"Error normalizing URL {url}: {e}")
+        return None
 
 
 def is_valid_url(url: str):

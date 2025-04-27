@@ -44,8 +44,6 @@ class Crawler:
     def _crawl(self):
         session = Session()
         while not self._finished_event.is_set():
-            time.sleep(0.2)
-
             url = self._get_from_frontier()
 
             if url is None:
@@ -90,7 +88,7 @@ class Crawler:
                 valid_urls = [url for url in extracted_urls if is_valid_url(url)]
                 normalized_urls = [normalized_url(url) for url in valid_urls]
                 authorized_urls = [
-                    url for url in normalized_urls if info.can_fetch(url)
+                    url for url in normalized_urls if url and info.can_fetch(url)
                 ]
                 logging.info(
                     f"Success: Extracted {len(authorized_urls)} URLs from {url}"

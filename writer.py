@@ -55,15 +55,15 @@ class Writer:
                     protocol="HTTP/1.1",
                 )
 
-                record = writer.create_warc_record(
-                    page.url,
-                    "response",
-                    payload=BytesIO(page.content.content),
-                    http_headers=http_headers,
-                )
+                with BytesIO(page.content.content) as payload:
+                    record = writer.create_warc_record(
+                        page.url,
+                        "response",
+                        payload=payload,
+                        http_headers=http_headers,
+                    )
 
-                writer.write_record(record)
-            writer.close()
+                    writer.write_record(record)
 
         Writer._buffer = []
         Writer._flush_count += 1
@@ -74,7 +74,7 @@ class Writer:
         Writer._buffer.append(Page(url, content))
         Writer._num_crawled += 1
 
-        if Writer._num_crawled % 1000 == 0:
+        if Writer._num_crawled % 100 == 0:
             logging.info(f"Crawled pages: {Writer._num_crawled}")
 
         if len(Writer._buffer) >= Writer.__BUFFER_SIZE:

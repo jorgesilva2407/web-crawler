@@ -34,7 +34,6 @@ class PageInfo:
                 self._initialize(
                     robots=robots,
                     crawl_delay=robots.crawl_delay("*") or 0.1,
-                    last_crawled=datetime.now(),
                 )
                 logging.info(f"Success: Fetched robots.txt for {self.url}")
             else:
