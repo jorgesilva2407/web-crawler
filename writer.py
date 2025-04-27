@@ -25,7 +25,7 @@ class Writer:
     _crawl_limit: int = None
     _finished_event: threading.Event = None
 
-    __BUFFER_SIZE = 1000
+    __BUFFER_SIZE = 100
 
     def __new__(
         cls, execution_id: str, crawl_limit: int, finished_event: threading.Event

@@ -27,6 +27,7 @@ class Crawler:
         self._lock = threading.Lock()
         self._visited = set()
         self._frontier: list[str] = [normalized_url(seed) for seed in seeds]
+        self._queued = set(self._frontier)
         self._politeness = Politeness()
         self._writer = Writer(execution_id, limit, self._finished_event)
 
@@ -72,29 +73,31 @@ class Crawler:
                 response = self._fetch(url, session)
                 if response is None:
                     continue
-                logging.info(f"Success: Fetched URL {url}")
 
-                logging.info(f"Parsing HTML for URL: {url}")
                 parsed_html = self._parse_html(url, response)
                 if parsed_html is None:
                     continue
-                logging.info(f"Success: Parsed HTML for URL {url}")
 
                 if self._debug:
                     self._print_debug_info(url, parsed_html)
 
-                logging.info(f"Extracting URLs from {url}")
                 extracted_urls = self._extract_urls(parsed_html)
                 valid_urls = [url for url in extracted_urls if is_valid_url(url)]
                 normalized_urls = [normalized_url(url) for url in valid_urls]
+                not_visited_queued_urls = [
+                    url
+                    for url in normalized_urls
+                    if url and url not in self._visited and url not in self._queued
+                ]
                 authorized_urls = [
-                    url for url in normalized_urls if url and info.can_fetch(url)
+                    url for url in not_visited_queued_urls if info.can_fetch(url)
                 ]
                 logging.info(
                     f"Success: Extracted {len(authorized_urls)} URLs from {url}"
                 )
 
                 self._writer.write(url, response)
+                self._visited.add(url)
                 self._add_to_frontier(normalized_urls)
 
     def _get_from_frontier(self):
@@ -157,3 +160,4 @@ class Crawler:
     def _add_to_frontier(self, urls):
         with self._lock:
             self._frontier.extend([url for url in urls if url not in self._visited])
+            self._queued.update(urls)
