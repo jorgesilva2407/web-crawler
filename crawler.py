@@ -2,7 +2,6 @@ import json
 import time
 import random
 import logging
-import requests
 import threading
 from writer import Writer
 from session import Session

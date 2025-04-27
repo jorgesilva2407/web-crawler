@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import threading
 from dataclasses import dataclass
@@ -26,9 +27,13 @@ class Writer:
     _finished_event: threading.Event = None
 
     __BUFFER_SIZE = 100
+    __NUM_FLUSH_RETRIES = 60
 
     def __new__(
-        cls, execution_id: str, crawl_limit: int, finished_event: threading.Event
+        cls,
+        execution_id: str,
+        crawl_limit: int,
+        finished_event: threading.Event,
     ):
         if not cls._instance:
             cls._crawl_limit = crawl_limit
@@ -78,8 +83,13 @@ class Writer:
             logging.info(f"Crawled pages: {Writer._num_crawled}")
 
         if len(Writer._buffer) >= Writer.__BUFFER_SIZE:
-            Writer.flush()
-            return
+            for i in range(Writer.__NUM_FLUSH_RETRIES):
+                try:
+                    Writer.flush()
+                    return
+                except Exception as e:
+                    logging.info("Error flushing buffer, retry attempt: %d", i + 1)
+                    time.sleep(1)
 
         if Writer._num_crawled >= Writer._crawl_limit:
             Writer._finished_event.set()

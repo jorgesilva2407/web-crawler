@@ -2,7 +2,7 @@ import logging
 from crawler import Crawler
 from datetime import datetime
 from logger import setup_logger
-from utils import parse_args, parse_seeds
+from utils import parse_args, parse_seeds, set_ulimit
 
 
 def main():

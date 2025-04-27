@@ -1,5 +1,6 @@
 import logging
 import argparse
+import subprocess
 import url_normalize
 from urllib.parse import urlparse
 
