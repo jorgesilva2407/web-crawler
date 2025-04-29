@@ -46,7 +46,7 @@ class Writer:
     _crawl_limit: int = None
     _finished_event: threading.Event = None
 
-    __BUFFER_SIZE = 100
+    __BUFFER_SIZE = 1000
     __NUM_FLUSH_RETRIES = 60
 
     def __new__(
